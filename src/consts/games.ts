@@ -22,6 +22,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Borregos, Monterrey',
       coords: [25.6538834, -100.2859069],
       website: 'https://ososlfa.com/',
+      color: '#e84524',
       games: [
         { rival: 'Dinos', date: '2026-04-09', time: '20:00', week: 1 },
         { rival: 'Mexicas', date: '2026-05-02', time: '19:00', week: 4 },
@@ -37,6 +38,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Olímpico de Saltillo',
       coords: [25.4318189, -100.9800433],
       website: 'https://www.instagram.com/dinoslfa',
+      color: '#662c91',
       games: [
         { rival: 'Gallos Negros', date: '2026-04-18', time: '19:00', week: 2 },
         { date: '2026-05-02', goodbye: true, week: 4 },
@@ -52,6 +54,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Olímpico de la UACH',
       coords: [28.7129598, -106.1440636],
       website: 'https://www.instagram.com/caudilloschihuahua',
+      color: '#957633',
       games: [
         { rival: 'Raptors', date: '2026-04-11', time: '19:00', week: 1 },
         { rival: 'Osos', date: '2026-04-18', time: '19:00', week: 2 },
@@ -67,6 +70,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Tec CCM',
       coords: [19.2862035, -99.1420001],
       website: 'https://raptorslfa.mx/',
+      color: '#0f4734',
       games: [
         { rival: 'Mexicas', date: '2026-04-18', time: '19:00', week: 2 },
         { rival: 'Dinos', date: '2026-04-25', time: '19:00', week: 3 },
@@ -82,6 +86,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Olímpico de Querétaro',
       coords: [20.5848793, -100.3876311],
       website: 'https://www.instagram.com/gallosnegroslfa',
+      color: '#1d59a3',
       games: [
         { rival: 'Reyes', date: '2026-04-11', time: '19:00', week: 1 },
         { rival: 'Mexicas', date: '2026-04-25', time: '19:00', week: 3 },
@@ -97,6 +102,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Fortaleza Azul',
       coords: [20.7372583, -103.4568731],
       website: 'https://www.instagram.com/reyes_lfa',
+      color: '#004f9a',
       games: [
         { date: '2026-04-18', goodbye: true, week: 2 },
         { rival: 'Osos', date: '2026-04-26', time: '19:00', week: 3 },
@@ -112,6 +118,7 @@ export const lfa_games: LfaGames[] = [
       stadium: 'Estadio Tec CCM',
       coords: [19.3553, -99.1811],
       website: 'https://mexicaslfa.com/',
+      color: '#ed1c24',
       games: [
         { date: '2026-04-11', goodbye: true, week: 1 },
         { rival: 'Dinos', date: '2026-05-09', time: '19:00', week: 5 },

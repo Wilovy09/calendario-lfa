@@ -1,10 +1,13 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{
-  name: string
-  size?: number
-}>(), {
-  size: 64,
-})
+const props = withDefaults(
+  defineProps<{
+    name: string
+    size?: number
+  }>(),
+  {
+    size: 64,
+  },
+)
 
 const SPRITE_W = 2041
 const SPRITE_H = 1021
@@ -38,12 +41,15 @@ const BASE_URL = import.meta.env.BASE_URL
 </script>
 
 <template>
-  <div :title="name" :style="{
-    width: `${size}px`,
-    height: `${size}px`,
-    backgroundImage: `url('${BASE_URL}logos.png')`,
-    backgroundSize: `${bgW}px ${bgH}px`,
-    backgroundPosition: `${bgX}px ${bgY}px`,
-    backgroundRepeat: 'no-repeat',
-  }" />
+  <div
+    :title="name"
+    :style="{
+      width: `${size}px`,
+      height: `${size}px`,
+      backgroundImage: `url('${BASE_URL}logos.png')`,
+      backgroundSize: `${bgW}px ${bgH}px`,
+      backgroundPosition: `${bgX}px ${bgY}px`,
+      backgroundRepeat: 'no-repeat',
+    }"
+  />
 </template>

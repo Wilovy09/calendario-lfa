@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -14,7 +14,6 @@
 body {
   @apply min-h-screen bg-[#FAF9F6] dark:bg-d-bg text-slate-900 dark:text-slate-100 transition-colors;
 }
-
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);

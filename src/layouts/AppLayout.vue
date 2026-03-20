@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import AppNavbar from '@/components/AppNavbar.vue'
 
-withDefaults(defineProps<{
-  title: string
-  back?: boolean
-  themeToggle?: boolean
-}>(), {
-  back: false,
-  themeToggle: false,
-})
+withDefaults(
+  defineProps<{
+    title: string
+    back?: boolean
+    themeToggle?: boolean
+  }>(),
+  {
+    back: false,
+    themeToggle: false,
+  },
+)
 </script>
 
 <template>

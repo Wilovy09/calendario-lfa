@@ -1,12 +1,12 @@
-import { inject } from "vue";
-import { MAP_KEY, type MapContextValue } from "../constants";
+import { inject } from 'vue'
+import { MAP_KEY, type MapContextValue } from '../constants'
 
-export { type MapContextValue };
+export { type MapContextValue }
 
 export function useMap(): MapContextValue {
-  const context = inject(MAP_KEY);
+  const context = inject(MAP_KEY)
   if (!context) {
-    throw new Error("useMap must be used within a Map component");
+    throw new Error('useMap must be used within a Map component')
   }
-  return context;
+  return context
 }

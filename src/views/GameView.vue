@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import TeamLogo from '@/components/TeamLogo.vue'
 import { lfa_games } from '@/consts/games'
 import AppLayout from '@/layouts/AppLayout.vue'
 import MapComponent from '@/components/ui/map/Map.vue'
 import MapPopup from '@/components/ui/map/MapPopup.vue'
+import { useVotesStore } from '@/stores/votes'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 
 const BASE_URL = import.meta.env.BASE_URL
+const teamsByName = new Map(lfa_games)
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (d: string) => {
@@ -57,8 +60,7 @@ const calendarUrl = computed(() => {
   const [y, mo, d] = date.split('-').map(Number) as [number, number, number]
   const start = new Date(y, mo - 1, d, h, m)
   const end = new Date(start.getTime() + 3 * 60 * 60 * 1000) // +3 horas
-  const fmt = (dt: Date) =>
-    dt.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  const fmt = (dt: Date) => dt.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const params = new URLSearchParams({
     action: 'TEMPLATE',
     text: `${home} vs ${away} — LFA`,
@@ -68,44 +70,53 @@ const calendarUrl = computed(() => {
   return `https://calendar.google.com/calendar/render?${params}`
 })
 
-// ─── Pick persistence ─────────────────────────────────────────────────────────
-const pick = ref<string | null>(null)
+// ─── Votes ────────────────────────────────────────────────────────────────────
+const votesStore = useVotesStore()
+const auth = useAuthStore()
+
 onMounted(() => {
-  pick.value = localStorage.getItem(`pick-${route.params.id}`)
+  if (game.value) votesStore.fetchVotes(game.value.id)
 })
 
-function togglePick(choice: 'home' | 'away') {
-  const next = pick.value === choice ? null : choice
-  pick.value = next
-  const key = `pick-${route.params.id}`
-  if (next) localStorage.setItem(key, next)
-  else localStorage.removeItem(key)
-}
+const votes = computed(() => votesStore.getVotes(game.value?.id ?? ''))
+const pick = computed(() => votes.value.userVote)
+const homePct = computed(() =>
+  votes.value.total === 0 ? 50 : Math.round((votes.value.home / votes.value.total) * 100),
+)
+const awayPct = computed(() => (votes.value.total === 0 ? 50 : 100 - homePct.value))
+const homeTeamColor = computed(() =>
+  game.value ? (teamsByName.get(game.value.home)?.color ?? '#22c55e') : '#22c55e',
+)
+const awayTeamColor = computed(() =>
+  game.value ? (teamsByName.get(game.value.away)?.color ?? '#3b82f6') : '#3b82f6',
+)
 
+async function togglePick(choice: 'home' | 'away') {
+  if (!auth.user) {
+    auth.signInWithGoogle()
+    return
+  }
+  if (game.value) await votesStore.castVote(game.value.id, choice)
+}
 </script>
 
 <template>
   <AppLayout v-if="game" :title="`Semana ${game.week}`" :theme-toggle="true" back>
     <main
-      class="px-4 py-8 max-w-md mx-auto space-y-6 lg:max-w-5xl lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-stretch">
-
+      class="px-4 py-8 max-w-md mx-auto space-y-6 lg:max-w-5xl lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-stretch"
+    >
       <!-- Columna izquierda: card + quién ganará -->
       <div class="space-y-6">
         <!-- Matchup card -->
-        <div class="bg-white dark:bg-d-card rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-d-border">
+        <div
+          class="bg-white dark:bg-d-card rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-d-border"
+        >
           <div class="flex items-center justify-between gap-2">
             <!-- Home -->
             <div class="flex flex-col items-center gap-2 flex-1">
               <div class="w-24 h-24 overflow-hidden flex items-center justify-center">
                 <TeamLogo :name="game.home" :size="96" />
               </div>
-              <p class="font-bold text-center text-sm leading-tight">{{ game.home }}</p>
-              <span
-                class="flex items-center gap-1 text-[11px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
-                <img :src="`${BASE_URL}icons/home.svg`"
-                  class="w-3 h-3 brightness-0 saturate-0 opacity-70 dark:brightness-0 dark:invert" alt="" />
-                Local
-              </span>
             </div>
 
             <!-- VS -->
@@ -116,77 +127,123 @@ function togglePick(choice: 'home' | 'away') {
               <div class="w-24 h-24 overflow-hidden flex items-center justify-center">
                 <TeamLogo :name="game.away" :size="96" />
               </div>
-              <p class="font-bold text-center text-sm leading-tight">{{ game.away }}</p>
-              <span
-                class="flex items-center gap-1 text-[11px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full font-medium">
-                <img :src="`${BASE_URL}icons/away.svg`"
-                  class="w-3 h-3 brightness-0 saturate-0 opacity-70 dark:brightness-0 dark:invert" alt="" />
-                Visita
-              </span>
             </div>
           </div>
 
           <!-- Date / stadium -->
           <div
-            class="mt-5 pt-4 border-t border-slate-100 dark:border-d-border space-y-1.5 text-sm text-slate-500 dark:text-slate-400">
+            class="mt-5 pt-4 border-t border-slate-100 dark:border-d-border space-y-1.5 text-sm text-slate-500 dark:text-slate-400"
+          >
             <p class="flex items-center gap-2">
-              <span>📅</span>
+              <img
+                :src="`${BASE_URL}icons/calendar.svg`"
+                class="w-4 h-4 shrink-0 opacity-60 dark:brightness-0 dark:invert"
+                alt=""
+              />
               <span class="capitalize">{{ fmt(game.date) }}</span>
             </p>
             <p class="flex items-center gap-2">
-              <span>🕐</span>
+              <img
+                :src="`${BASE_URL}icons/clock.svg`"
+                class="w-4 h-4 shrink-0 opacity-60 dark:brightness-0 dark:invert"
+                alt=""
+              />
               <span>{{ game.time }} hrs</span>
             </p>
             <p v-if="game.stadium" class="flex items-center gap-2">
-              <img :src="`${BASE_URL}icons/pin_map.svg`"
-                class="w-4 h-4 shrink-0 opacity-60 dark:brightness-0 dark:invert" alt="" />
+              <img
+                :src="`${BASE_URL}icons/pin_map.svg`"
+                class="w-4 h-4 shrink-0 opacity-60 dark:brightness-0 dark:invert"
+                alt=""
+              />
               <span>{{ game.stadium }}</span>
             </p>
           </div>
         </div>
 
         <!-- ¿Quién ganará? -->
-        <div class="bg-white dark:bg-d-card rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-d-border">
-          <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4 text-center">
+        <div
+          class="bg-white dark:bg-d-card rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-d-border"
+        >
+          <p
+            class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-4 text-center"
+          >
             ¿Quién ganará?
           </p>
           <div class="flex gap-3">
-            <button @click="togglePick('home')" :class="[
-              'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
-              pick === 'home'
-                ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
-                : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
-            ]">
-              <div class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none">
+            <button
+              @click="togglePick('home')"
+              :class="[
+                'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
+                pick === 'home'
+                  ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                  : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
+              ]"
+            >
+              <div
+                class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none"
+              >
                 <TeamLogo :name="game.home" :size="56" />
               </div>
               <span class="text-xs font-semibold">{{ game.home }}</span>
             </button>
 
-            <button @click="togglePick('away')" :class="[
-              'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
-              pick === 'away'
-                ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
-                : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
-            ]">
-              <div class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none">
+            <button
+              @click="togglePick('away')"
+              :class="[
+                'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
+                pick === 'away'
+                  ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                  : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
+              ]"
+            >
+              <div
+                class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none"
+              >
                 <TeamLogo :name="game.away" :size="56" />
               </div>
               <span class="text-xs font-semibold">{{ game.away }}</span>
             </button>
           </div>
+
+          <!-- Barra de porcentaje -->
+          <div v-if="votes.total > 0" class="mt-4 space-y-1">
+            <div class="flex overflow-hidden rounded-full h-3 bg-slate-100 dark:bg-d-raised">
+              <div
+                class="transition-all duration-500"
+                :style="{ width: `${homePct}%`, backgroundColor: homeTeamColor }"
+              />
+              <div
+                class="transition-all duration-500"
+                :style="{ width: `${awayPct}%`, backgroundColor: awayTeamColor }"
+              />
+            </div>
+            <div
+              class="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium"
+            >
+              <span :style="{ color: homeTeamColor }">{{ homePct }}% {{ game.home }}</span>
+              <span class="text-slate-400">{{ votes.total }} votos</span>
+              <span :style="{ color: awayTeamColor }">{{ game.away }} {{ awayPct }}%</span>
+            </div>
+          </div>
+          <p v-else class="mt-3 text-center text-xs text-slate-400">Sé el primero en votar</p>
         </div>
       </div>
 
       <!-- Columna derecha: mapa + acciones -->
       <div class="flex flex-col gap-3">
-        <div v-if="game.coords"
-          class="rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-d-border h-52 lg:flex-1">
+        <div
+          v-if="game.coords"
+          class="rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-d-border h-52 lg:flex-1"
+        >
           <MapComponent :center="[game.coords[1], game.coords[0]]" :zoom="15" class="h-full w-full">
             <MapPopup :longitude="game.coords[1]" :latitude="game.coords[0]">
               <div
-                class="bg-white dark:bg-d-card border border-slate-200 dark:border-d-border rounded-xl shadow-md px-3 py-2 space-y-0.5">
-                <p class="font-semibold text-sm text-slate-800 dark:text-slate-100">{{ game.home }}</p>
+                class="bg-white dark:bg-d-card border border-slate-200 dark:border-d-border rounded-xl shadow-md px-3 py-2 space-y-0.5"
+              >
+                <p class="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                  {{ game.home }}
+                </p>
                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ game.stadium }}</p>
               </div>
             </MapPopup>
@@ -195,13 +252,26 @@ function togglePick(choice: 'home' | 'away') {
 
         <!-- Acciones -->
         <div class="flex gap-3">
-          <a :href="calendarUrl" target="_blank" rel="noopener"
-            class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-d-border bg-white dark:bg-d-card hover:border-amber-400 dark:hover:border-amber-500 transition-colors text-sm font-semibold text-slate-700 dark:text-slate-200">
-            <img :src="`${BASE_URL}icons/pin_map.svg`" class="w-4 h-4 shrink-0 opacity-60 dark:brightness-0 dark:invert" alt="" />
+          <a
+            :href="calendarUrl"
+            target="_blank"
+            rel="noopener"
+            class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-d-border bg-white dark:bg-d-card hover:border-amber-400 dark:hover:border-amber-500 transition-colors text-sm font-semibold text-slate-700 dark:text-slate-200"
+          >
+            <img
+              :src="`${BASE_URL}icons/calendar.svg`"
+              class="w-4 h-4 shrink-0 opacity-60 dark:brightness-0 dark:invert"
+              alt=""
+            />
             Agregar al calendario
           </a>
-          <a v-if="game.website" :href="game.website" target="_blank" rel="noopener"
-            class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-d-border bg-white dark:bg-d-card hover:border-amber-400 dark:hover:border-amber-500 transition-colors text-sm font-semibold text-slate-700 dark:text-slate-200">
+          <a
+            v-if="game.website"
+            :href="game.website"
+            target="_blank"
+            rel="noopener"
+            class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-d-border bg-white dark:bg-d-card hover:border-amber-400 dark:hover:border-amber-500 transition-colors text-sm font-semibold text-slate-700 dark:text-slate-200"
+          >
             Ver página del equipo
           </a>
         </div>
