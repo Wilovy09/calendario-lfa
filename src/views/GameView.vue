@@ -8,11 +8,13 @@ import MapComponent from '@/components/ui/map/Map.vue'
 import MapPopup from '@/components/ui/map/MapPopup.vue'
 import { useVotesStore } from '@/stores/votes'
 import { useAuthStore } from '@/stores/auth'
+import { useGames, gameLocalTime } from '@/composables/useGames'
 
 const route = useRoute()
 
 const BASE_URL = import.meta.env.BASE_URL
 const teamsByName = new Map(lfa_games)
+const { games: remoteGames } = useGames()
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (d: string) => {
@@ -24,32 +26,26 @@ const fmt = (d: string) => {
     year: 'numeric',
   })
 }
-const sid = (n: string) => n.replace(/\s+/g, '-')
-const makeGameId = (week: number, home: string, away: string) =>
-  `s${week}-${sid(home).toLowerCase()}-vs-${sid(away).toLowerCase()}`
 
-// ─── Find game ────────────────────────────────────────────────────────────────
+// ─── Find game desde Supabase ─────────────────────────────────────────────────
 const game = computed(() => {
   const id = route.params.id as string
-  const teamMap = new Map(lfa_games.map(([n, t]) => [n, t]))
-  for (const [name, team] of lfa_games) {
-    for (const g of team.games ?? []) {
-      if (!g.goodbye && makeGameId(g.week, name, g.rival!) === id) {
-        return {
-          id,
-          week: g.week,
-          home: name,
-          away: g.rival!,
-          date: g.date,
-          time: g.time!,
-          stadium: team.stadium ?? '',
-          coords: team.coords,
-          website: teamMap.get(name)?.website ?? null,
-        }
-      }
-    }
+  const remote = remoteGames.value.find((g) => g.id === id)
+  if (!remote) return null
+  const homeTeam = teamsByName.get(remote.home_team)
+  const { date, time } = gameLocalTime(remote.starts_at)
+  return {
+    id: remote.id,
+    week: remote.week,
+    home: remote.home_team,
+    away: remote.away_team,
+    date,
+    time,
+    starts_at: remote.starts_at,
+    stadium: homeTeam?.stadium ?? '',
+    coords: homeTeam?.coords,
+    website: homeTeam?.website ?? null,
   }
-  return null
 })
 
 // ─── Google Calendar link ─────────────────────────────────────────────────────
@@ -79,6 +75,7 @@ onMounted(() => {
 })
 
 const votes = computed(() => votesStore.getVotes(game.value?.id ?? ''))
+const isLoadingVotes = computed(() => votesStore.loading[game.value?.id ?? ''] ?? true)
 const pick = computed(() => votes.value.userVote)
 const homePct = computed(() =>
   votes.value.total === 0 ? 50 : Math.round((votes.value.home / votes.value.total) * 100),
@@ -90,6 +87,11 @@ const homeTeamColor = computed(() =>
 const awayTeamColor = computed(() =>
   game.value ? (teamsByName.get(game.value.away)?.color ?? '#3b82f6') : '#3b82f6',
 )
+
+const isVoteLocked = computed(() => {
+  if (!game.value) return false
+  return Date.now() >= new Date(game.value.starts_at).getTime() - 30 * 60 * 1000
+})
 
 async function togglePick(choice: 'home' | 'away') {
   if (!auth.user) {
@@ -170,63 +172,98 @@ async function togglePick(choice: 'home' | 'away') {
           >
             ¿Quién ganará?
           </p>
-          <div class="flex gap-3">
-            <button
-              @click="togglePick('home')"
-              :class="[
-                'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
-                pick === 'home'
-                  ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
-                  : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
-              ]"
-            >
-              <div
-                class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none"
-              >
-                <TeamLogo :name="game.home" :size="56" />
-              </div>
-              <span class="text-xs font-semibold">{{ game.home }}</span>
-            </button>
 
-            <button
-              @click="togglePick('away')"
-              :class="[
-                'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
-                pick === 'away'
-                  ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
-                  : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
-              ]"
-            >
+          <!-- Skeleton -->
+          <template v-if="isLoadingVotes">
+            <div class="flex gap-3">
               <div
-                class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none"
+                v-for="n in 2"
+                :key="n"
+                class="flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 border-slate-100 dark:border-d-border animate-pulse"
               >
-                <TeamLogo :name="game.away" :size="56" />
+                <div class="w-14 h-14 rounded-full bg-slate-200 dark:bg-d-raised" />
+                <div class="h-3 w-16 rounded-full bg-slate-200 dark:bg-d-raised" />
               </div>
-              <span class="text-xs font-semibold">{{ game.away }}</span>
-            </button>
-          </div>
+            </div>
+            <div class="mt-4 space-y-2 animate-pulse">
+              <div class="h-3 rounded-full bg-slate-200 dark:bg-d-raised" />
+              <div class="flex justify-between">
+                <div class="h-3 w-20 rounded-full bg-slate-200 dark:bg-d-raised" />
+                <div class="h-3 w-14 rounded-full bg-slate-200 dark:bg-d-raised" />
+                <div class="h-3 w-20 rounded-full bg-slate-200 dark:bg-d-raised" />
+              </div>
+            </div>
+          </template>
 
-          <!-- Barra de porcentaje -->
-          <div v-if="votes.total > 0" class="mt-4 space-y-1">
-            <div class="flex overflow-hidden rounded-full h-3 bg-slate-100 dark:bg-d-raised">
-              <div
-                class="transition-all duration-500"
-                :style="{ width: `${homePct}%`, backgroundColor: homeTeamColor }"
-              />
-              <div
-                class="transition-all duration-500"
-                :style="{ width: `${awayPct}%`, backgroundColor: awayTeamColor }"
-              />
+          <!-- Content -->
+          <template v-else>
+            <div class="flex gap-3">
+              <button
+                @click="togglePick('home')"
+                :disabled="isVoteLocked"
+                :class="[
+                  'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
+                  isVoteLocked
+                    ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-d-border'
+                    : pick === 'home'
+                      ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                      : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
+                ]"
+              >
+                <div
+                  class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none"
+                >
+                  <TeamLogo :name="game.home" :size="56" />
+                </div>
+                <span class="text-xs font-semibold">{{ game.home }}</span>
+              </button>
+
+              <button
+                @click="togglePick('away')"
+                :disabled="isVoteLocked"
+                :class="[
+                  'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
+                  isVoteLocked
+                    ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-d-border'
+                    : pick === 'away'
+                      ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                      : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
+                ]"
+              >
+                <div
+                  class="w-14 h-14 overflow-hidden flex items-center justify-center pointer-events-none"
+                >
+                  <TeamLogo :name="game.away" :size="56" />
+                </div>
+                <span class="text-xs font-semibold">{{ game.away }}</span>
+              </button>
             </div>
-            <div
-              class="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium"
-            >
-              <span :style="{ color: homeTeamColor }">{{ homePct }}% {{ game.home }}</span>
-              <span class="text-slate-400">{{ votes.total }} votos</span>
-              <span :style="{ color: awayTeamColor }">{{ game.away }} {{ awayPct }}%</span>
+            <p v-if="isVoteLocked" class="mt-3 text-center text-xs text-slate-400">
+              Las votaciones cerraron 30 min antes del partido
+            </p>
+
+            <!-- Barra de porcentaje -->
+            <div v-if="votes.total > 0" class="mt-4 space-y-1">
+              <div class="flex overflow-hidden rounded-full h-3 bg-slate-100 dark:bg-d-raised">
+                <div
+                  class="transition-all duration-500"
+                  :style="{ width: `${homePct}%`, backgroundColor: homeTeamColor }"
+                />
+                <div
+                  class="transition-all duration-500"
+                  :style="{ width: `${awayPct}%`, backgroundColor: awayTeamColor }"
+                />
+              </div>
+              <div
+                class="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium"
+              >
+                <span :style="{ color: homeTeamColor }">{{ homePct }}% {{ game.home }}</span>
+                <span class="text-slate-400">{{ votes.total }} votos</span>
+                <span :style="{ color: awayTeamColor }">{{ game.away }} {{ awayPct }}%</span>
+              </div>
             </div>
-          </div>
-          <p v-else class="mt-3 text-center text-xs text-slate-400">Sé el primero en votar</p>
+            <p v-else class="mt-3 text-center text-xs text-slate-400">Sé el primero en votar</p>
+          </template>
         </div>
       </div>
 

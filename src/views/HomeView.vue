@@ -4,8 +4,18 @@ import { RouterLink } from 'vue-router'
 import TeamLogo from '@/components/TeamLogo.vue'
 import { lfa_games } from '@/consts/games'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { useHomeViewStore } from '@/stores/homeView'
+import { storeToRefs } from 'pinia'
+import { useGames, gameLocalTime } from '@/composables/useGames'
+
+const homeView = useHomeViewStore()
+const { view, weekIndex, activeTeam } = storeToRefs(homeView)
 
 const BASE_URL = import.meta.env.BASE_URL
+const { games: remoteGames, loading: gamesLoading } = useGames()
+
+// ─── Team metadata (estadio, coords, color) sigue viniendo de lfa_games ───────
+const stadiums = new Map(lfa_games.map(([n, t]) => [n, t.stadium ?? '']))
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const fmt = (d: string) => {
@@ -20,36 +30,40 @@ const sid = (n: string) => n.replace(/\s+/g, '-')
 const gameId = (week: number, home: string, away: string) =>
   `s${week}-${sid(home).toLowerCase()}-vs-${sid(away).toLowerCase()}`
 
-// ─── Build weeks data ─────────────────────────────────────────────────────────
+// ─── Build weeks data desde Supabase ──────────────────────────────────────────
 type WeekGame = { home: string; away: string; date: string; time: string; stadium: string }
 type WeekData = { games: WeekGame[]; byes: string[] }
 
-const stadiums = new Map(lfa_games.map(([n, t]) => [n, t.stadium ?? '']))
-
 const weeks = computed(() => {
   const weekMap = new Map<number, WeekData>()
+
+  // Juegos desde Supabase
+  for (const g of remoteGames.value) {
+    if (!weekMap.has(g.week)) weekMap.set(g.week, { games: [], byes: [] })
+    const { date, time } = gameLocalTime(g.starts_at)
+    weekMap.get(g.week)!.games.push({
+      home: g.home_team,
+      away: g.away_team,
+      date,
+      time,
+      stadium: stadiums.get(g.home_team) ?? '',
+    })
+  }
+
+  // Byes siguen viniendo de lfa_games
   for (const [name, team] of lfa_games) {
     for (const g of team.games ?? []) {
-      if (!weekMap.has(g.week)) weekMap.set(g.week, { games: [], byes: [] })
-      const wd = weekMap.get(g.week)!
-      if (g.goodbye) wd.byes.push(name)
-      else
-        wd.games.push({
-          home: name,
-          away: g.rival!,
-          date: g.date,
-          time: g.time!,
-          stadium: stadiums.get(name) ?? '',
-        })
+      if (g.goodbye) {
+        if (!weekMap.has(g.week)) weekMap.set(g.week, { games: [], byes: [] })
+        weekMap.get(g.week)!.byes.push(name)
+      }
     }
   }
+
   return [...weekMap.entries()].sort(([a], [b]) => a - b)
 })
 
-// ─── State ────────────────────────────────────────────────────────────────────
-const view = ref<'weeks' | 'teams'>('weeks')
-const weekIndex = ref(0)
-const activeTeam = ref(lfa_games[0]![0]!)
+// ─── Local state ──────────────────────────────────────────────────────────────
 const showCalendarMenu = ref(false)
 const calendarStep = ref<'options' | 'google'>('options')
 
@@ -66,23 +80,19 @@ const teamSchedule = computed((): ScheduleRow[] => {
   const name = activeTeam.value
   const rows: ScheduleRow[] = []
 
-  for (const [teamName, team] of lfa_games) {
-    for (const g of team.games ?? []) {
-      if (teamName === name) {
-        if (g.goodbye)
-          rows.push({
-            week: g.week,
-            rival: '',
-            date: g.date,
-            time: '',
-            isHome: true,
-            goodbye: true,
-          })
-        else rows.push({ week: g.week, rival: g.rival!, date: g.date, time: g.time!, isHome: true })
-      } else if (!g.goodbye && g.rival === name) {
-        rows.push({ week: g.week, rival: teamName, date: g.date, time: g.time!, isHome: false })
-      }
+  // Juegos desde Supabase
+  for (const g of remoteGames.value) {
+    const { date, time } = gameLocalTime(g.starts_at)
+    if (g.home_team === name) {
+      rows.push({ week: g.week, rival: g.away_team, date, time, isHome: true })
+    } else if (g.away_team === name) {
+      rows.push({ week: g.week, rival: g.home_team, date, time, isHome: false })
     }
+  }
+
+  // Byes desde lfa_games
+  for (const g of lfa_games.find(([n]) => n === name)?.[1].games ?? []) {
+    if (g.goodbye) rows.push({ week: g.week, rival: '', date: g.date, time: '', isHome: true, goodbye: true })
   }
 
   return rows.sort((a, b) => a.week - b.week)
@@ -203,8 +213,26 @@ function addAllToGoogle() {
         </button>
       </div>
 
+      <!-- Skeleton de carga -->
+      <div v-if="gamesLoading" class="space-y-3 animate-pulse">
+        <div v-for="n in 2" :key="n" class="bg-white dark:bg-d-card rounded-2xl p-4 border border-slate-100 dark:border-d-border">
+          <div class="h-3 w-32 rounded-full bg-slate-200 dark:bg-d-raised mb-4" />
+          <div class="flex items-center gap-2">
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-14 h-14 rounded-full bg-slate-200 dark:bg-d-raised" />
+              <div class="h-3 w-16 rounded-full bg-slate-200 dark:bg-d-raised" />
+            </div>
+            <div class="h-4 w-6 rounded bg-slate-200 dark:bg-d-raised" />
+            <div class="flex-1 flex flex-col items-center gap-2">
+              <div class="w-14 h-14 rounded-full bg-slate-200 dark:bg-d-raised" />
+              <div class="h-3 w-16 rounded-full bg-slate-200 dark:bg-d-raised" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ════ VISTA: POR SEMANA ════ -->
-      <div v-show="view === 'weeks'">
+      <div v-show="view === 'weeks' && !gamesLoading">
         <!-- Week carousel -->
         <div class="flex items-center gap-4 justify-center">
           <button
@@ -355,7 +383,7 @@ function addAllToGoogle() {
       </div>
 
       <!-- ════ VISTA: POR EQUIPO ════ -->
-      <div v-show="view === 'teams'" class="space-y-4">
+      <div v-show="view === 'teams' && !gamesLoading" class="space-y-4">
         <!-- Team selector -->
         <div class="flex flex-wrap gap-2 justify-center">
           <button
@@ -627,10 +655,13 @@ function addAllToGoogle() {
 
             <!-- Game rows -->
             <div class="flex flex-col gap-2">
-              <div
+              <component
+                :is="g.goodbye ? 'div' : RouterLink"
                 v-for="g in teamSchedule"
                 :key="g.week"
-                class="bg-white dark:bg-d-card rounded-xl px-4 py-3 shadow-sm border border-slate-100 dark:border-d-border flex items-center gap-3"
+                :to="g.goodbye ? undefined : `/game/${gameId(g.week, g.isHome ? activeTeam : g.rival, g.isHome ? g.rival : activeTeam)}`"
+                class="bg-white dark:bg-d-card rounded-xl px-4 py-3 shadow-sm border border-slate-100 dark:border-d-border flex items-center gap-3 transition-colors"
+                :class="{ 'hover:border-amber-400 dark:hover:border-amber-500 cursor-pointer': !g.goodbye }"
               >
                 <div class="flex flex-col items-center w-9 shrink-0">
                   <span class="text-[10px] text-slate-400 uppercase leading-none">Sem</span>
@@ -668,7 +699,7 @@ function addAllToGoogle() {
                     {{ g.isHome ? 'Local' : 'Visita' }}
                   </span>
                 </template>
-              </div>
+              </component>
             </div>
           </div>
         </template>
