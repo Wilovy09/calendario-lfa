@@ -18,6 +18,11 @@ const router = createRouter({
       name: 'game',
       component: () => import('../views/GameView.vue'),
     },
+    {
+      path: '/privacidad',
+      name: 'privacy',
+      component: () => import('../views/PrivacyView.vue'),
+    },
   ],
 })
 
