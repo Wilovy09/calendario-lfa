@@ -51,7 +51,7 @@ onMounted(sync)
         </svg>
       </RouterLink>
       <span v-else class="text-xl">
-        <img src="/icons/icon.png" alt="Logo" class="w-6 h-6 mr-1 inline-block -mt-1" />
+        <img :src="`${BASE_URL}icons/icon.png`" alt="Logo" class="w-6 h-6 mr-1 inline-block -mt-1" />
       </span>
       <span class="font-bold tracking-tight text-base sm:text-lg">{{ props.title }}</span>
     </div>
