@@ -8,6 +8,20 @@ type BeforeInstallPromptEvent = Event & {
 const deferredPrompt = ref<BeforeInstallPromptEvent | null>(null)
 const isInstallable = ref(false)
 
+export const isMobile = ref(false)
+export const isChrome = ref(false)
+
+async function detectUA() {
+  const ua = navigator.userAgent
+  isMobile.value = /Android|iPhone|iPad|iPod/i.test(ua)
+
+  const looksLikeChrome = /Chrome\//.test(ua) && !/OPR\/|Edg\/|SamsungBrowser|UCBrowser|Firefox/.test(ua)
+  const isBrave = looksLikeChrome
+    ? await (navigator as any).brave?.isBrave?.().catch(() => false) ?? false
+    : false
+  isChrome.value = looksLikeChrome && !isBrave
+}
+
 export function usePWAInstall() {
   function onBeforeInstallPrompt(e: Event) {
     e.preventDefault()
@@ -21,6 +35,7 @@ export function usePWAInstall() {
   }
 
   onMounted(() => {
+    detectUA()
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
     window.addEventListener('appinstalled', onAppInstalled)
   })
@@ -40,5 +55,5 @@ export function usePWAInstall() {
     }
   }
 
-  return { isInstallable, install }
+  return { isInstallable, install, isMobile, isChrome }
 }

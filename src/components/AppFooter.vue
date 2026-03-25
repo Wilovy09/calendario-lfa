@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePWAInstall } from '@/components/usePWAInstall'
 import PWAInstallModal from '@/components/PWAInstallModal.vue'
 
 const BASE_URL = import.meta.env.BASE_URL
-const { isInstallable, install } = usePWAInstall()
+const { isInstallable, install, isMobile, isChrome } = usePWAInstall()
 const showModal = ref(false)
+
+const showInstallSection = computed(() => isMobile.value && (isInstallable.value || !isChrome.value))
 
 async function handleInstall() {
   showModal.value = false
@@ -18,7 +20,7 @@ async function handleInstall() {
   <footer class="mt-auto border-t border-slate-200 bg-[#FAF9F6] dark:border-d-border dark:bg-d-header">
     <div class="mx-auto max-w-5xl px-4 py-6">
       <div
-        v-if="isInstallable"
+        v-if="showInstallSection"
         class="mb-4 pb-4 border-b border-slate-200 dark:border-d-border flex items-center justify-between gap-4"
       >
         <div>
@@ -48,5 +50,5 @@ async function handleInstall() {
     </div>
   </footer>
 
-  <PWAInstallModal :open="showModal" @close="showModal = false" @install="handleInstall" />
+  <PWAInstallModal :open="showModal" :isChrome="isChrome" @close="showModal = false" @install="handleInstall" />
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ open: boolean }>()
+defineProps<{ open: boolean; isChrome?: boolean }>()
 const emit = defineEmits<{ close: []; install: [] }>()
 const BASE_URL = import.meta.env.BASE_URL
 </script>
@@ -29,36 +29,68 @@ const BASE_URL = import.meta.env.BASE_URL
           </button>
         </div>
 
-        <div class="flex flex-col gap-3 text-sm text-slate-600 dark:text-slate-300">
-          <p>
-            Al instalar la app en tu dispositivo obtienes una experiencia nativa: acceso directo
-            desde tu pantalla de inicio, carga más rápida y uso sin conexión.
-          </p>
-          <p>
-            Elegimos esta tecnología (PWA) en lugar de publicar en las tiendas de apps
-            <span class="font-semibold text-slate-800 dark:text-white">para no depender de anuncios</span>.
-            Sin intermediarios, sin trackers de terceros, sin costos ocultos para ti.
-          </p>
-          <p class="text-xs text-slate-400 dark:text-slate-500">
-            No se instala ningún APK ni ejecutable — es solo un acceso directo a este sitio web, gestionado por tu
-            propio navegador.
-          </p>
-          <p class="text-xs font-medium text-amber-600 dark:text-amber-400">
-            Para una instalación completa en el cajón de apps, se recomienda usar
-            <span class="font-bold">Google Chrome</span>.
-          </p>
-        </div>
+        <!-- Chrome: flujo normal de instalación -->
+        <template v-if="isChrome">
+          <div class="flex flex-col gap-3 text-sm text-slate-600 dark:text-slate-300">
+            <p>
+              Al instalar la app en tu dispositivo obtienes una experiencia nativa: acceso directo
+              desde tu pantalla de inicio, carga más rápida y uso sin conexión.
+            </p>
+            <p>
+              Elegimos esta tecnología (PWA) en lugar de publicar en las tiendas de apps
+              <span class="font-semibold text-slate-800 dark:text-white">para no depender de anuncios</span>.
+              Sin intermediarios, sin trackers de terceros, sin costos ocultos para ti.
+            </p>
+            <p class="text-xs text-slate-400 dark:text-slate-500">
+              No se instala ningún APK ni ejecutable — es solo un acceso directo a este sitio web, gestionado por tu
+              propio navegador.
+            </p>
+          </div>
 
-        <div class="flex gap-3 pt-1">
-          <button @click="emit('close')"
-            class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-d-border text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-d-raised transition-colors">
-            Ahora no
-          </button>
-          <button @click="emit('install')"
-            class="flex-1 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold hover:opacity-90 transition-opacity">
-            Instalar
-          </button>
-        </div>
+          <div class="flex gap-3 pt-1">
+            <button @click="emit('close')"
+              class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-d-border text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-d-raised transition-colors">
+              Ahora no
+            </button>
+            <button @click="emit('install')"
+              class="flex-1 py-2.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-semibold hover:opacity-90 transition-opacity">
+              Instalar
+            </button>
+          </div>
+        </template>
+
+        <!-- No Chrome: recomendación -->
+        <template v-else>
+          <div class="flex flex-col gap-3 text-sm text-slate-600 dark:text-slate-300">
+            <div class="flex items-start gap-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="shrink-0 mt-0.5 text-amber-500">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <p class="text-amber-800 dark:text-amber-300">
+                Para instalar esta app en tu dispositivo necesitas
+                <span class="font-bold">Google Chrome</span>.
+                Tu navegador actual no es compatible con la instalación de PWAs.
+              </p>
+            </div>
+            <p>
+              Abre esta página en Chrome y podrás instalarla directamente en tu pantalla de inicio,
+              sin App Store, sin anuncios y sin costo.
+            </p>
+            <p class="text-xs text-slate-400 dark:text-slate-500">
+              Puedes copiar la URL y pegarla en Chrome para continuar.
+            </p>
+          </div>
+
+          <div class="flex gap-3 pt-1">
+            <button @click="emit('close')"
+              class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-d-border text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-d-raised transition-colors">
+              Entendido
+            </button>
+          </div>
+        </template>
       </div>
     </div>
   </Transition>
