@@ -59,20 +59,12 @@ import AppLayout from '@/layouts/AppLayout.vue'
           <p>
             Microsoft procesa estos datos conforme a su propia política de privacidad. Puedes
             consultarla en
-            <a
-              href="https://privacy.microsoft.com/privacystatement"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400"
-            >privacy.microsoft.com</a>.
+            <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener noreferrer"
+              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400">privacy.microsoft.com</a>.
             También puedes optar por no ser rastreado mediante el complemento de exclusión de
             Clarity en
-            <a
-              href="https://clarity.microsoft.com/optout"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400"
-            >clarity.microsoft.com/optout</a>.
+            <a href="https://clarity.microsoft.com/optout" target="_blank" rel="noopener noreferrer"
+              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400">clarity.microsoft.com/optout</a>.
           </p>
         </section>
 
@@ -114,14 +106,39 @@ import AppLayout from '@/layouts/AppLayout.vue'
         <!-- Autenticación -->
         <section class="space-y-2">
           <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">
-            Autenticación con Google
+            Autenticación con redes sociales
           </h2>
           <p>
-            El sitio ofrece inicio de sesión opcional mediante Google, gestionado a través de
-            <span class="font-medium text-slate-800 dark:text-slate-200">Supabase</span>. Si
-            decides iniciar sesión, únicamente almacenamos tu nombre y correo electrónico
-            proporcionados por Google para identificarte dentro del sitio. No compartimos esta
-            información con terceros.
+            El sitio ofrece inicio de sesión opcional mediante Google y Facebook, gestionado a
+            través de <span class="font-medium text-slate-800 dark:text-slate-200">Supabase</span>.
+            Si decides iniciar sesión, únicamente almacenamos tu nombre y correo electrónico
+            para identificarte dentro del sitio. No compartimos esta información con terceros.
+          </p>
+          <p>
+            El inicio de sesión con Facebook está sujeto a la
+            <a href="https://www.facebook.com/policy.php" target="_blank" rel="noopener noreferrer"
+              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400">Política
+              de datos de Meta</a>.
+          </p>
+        </section>
+
+        <!-- Eliminación de datos -->
+        <section class="space-y-2">
+          <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">
+            Eliminación de datos
+          </h2>
+          <p>
+            Puedes solicitar la eliminación completa de tus datos en cualquier momento. Para hacerlo,
+            envía un correo a
+            <a href="mailto:emilianom179@gmail.com"
+              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400">emilianom179@gmail.com</a>
+            con el asunto <span
+              class="font-mono text-xs bg-slate-100 dark:bg-d-raised px-1.5 py-0.5 rounded">Eliminación de datos</span>
+            indicando el correo electrónico con el que iniciaste sesión.
+          </p>
+          <p>
+            Procesaremos tu solicitud y eliminaremos tu cuenta y datos asociados en un plazo
+            máximo de <span class="font-medium text-slate-800 dark:text-slate-200">30 días</span>.
           </p>
         </section>
 
