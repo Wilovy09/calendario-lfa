@@ -21,7 +21,7 @@ const BASE_URL = import.meta.env.BASE_URL
 const { isDark, sync, toggle } = useTheme()
 const authStore = useAuthStore()
 const { user } = storeToRefs(authStore)
-const { signOut, signInWithGoogle } = authStore
+const { signOut } = authStore
 onMounted(sync)
 </script>
 
@@ -78,15 +78,15 @@ onMounted(sync)
         <span class="text-sm font-medium">{{ user.user_metadata.full_name }}</span>
         <img :src="`${BASE_URL}icons/logout.svg`" class="w-5 h-5 brightness-0 invert" alt="" />
       </button>
-      <button
+      <RouterLink
         v-else
-        @click="signInWithGoogle"
+        :to="{ name: 'login' }"
         class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-d-card hover:bg-d-raised transition-colors"
         aria-label="Iniciar sesión"
       >
         <span class="text-sm font-medium">Iniciar sesión</span>
         <img :src="`${BASE_URL}icons/login.svg`" class="w-5 h-5 brightness-0 invert" alt="" />
-      </button>
+      </RouterLink>
     </div>
   </header>
 </template>

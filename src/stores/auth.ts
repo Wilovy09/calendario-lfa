@@ -24,10 +24,19 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
+  async function signInWithFacebook() {
+    await supabase.auth.signInWithOAuth({
+      provider: 'facebook',
+      options: {
+        redirectTo: window.location.origin + import.meta.env.BASE_URL,
+      },
+    })
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
     user.value = null
   }
 
-  return { user, init, signInWithGoogle, signOut }
+  return { user, init, signInWithGoogle, signInWithFacebook, signOut }
 })
