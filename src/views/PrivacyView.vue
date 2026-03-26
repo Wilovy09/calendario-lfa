@@ -109,16 +109,10 @@ import AppLayout from '@/layouts/AppLayout.vue'
             Autenticación con redes sociales
           </h2>
           <p>
-            El sitio ofrece inicio de sesión opcional mediante Google y Facebook, gestionado a
+            El sitio ofrece inicio de sesión opcional mediante Google, gestionado a
             través de <span class="font-medium text-slate-800 dark:text-slate-200">Supabase</span>.
             Si decides iniciar sesión, únicamente almacenamos tu nombre y correo electrónico
             para identificarte dentro del sitio. No compartimos esta información con terceros.
-          </p>
-          <p>
-            El inicio de sesión con Facebook está sujeto a la
-            <a href="https://www.facebook.com/policy.php" target="_blank" rel="noopener noreferrer"
-              class="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-600 dark:text-slate-100 dark:hover:text-slate-400">Política
-              de datos de Meta</a>.
           </p>
         </section>
 
