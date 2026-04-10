@@ -31,7 +31,7 @@ const gameId = (week: number, home: string, away: string) =>
   `s${week}-${sid(home).toLowerCase()}-vs-${sid(away).toLowerCase()}`
 
 // ─── Build weeks data desde Supabase ──────────────────────────────────────────
-type WeekGame = { home: string; away: string; date: string; time: string; stadium: string }
+type WeekGame = { home: string; away: string; date: string; time: string; stadium: string; home_score: number | null; away_score: number | null }
 type WeekData = { games: WeekGame[]; byes: string[] }
 
 const weeks = computed(() => {
@@ -47,6 +47,8 @@ const weeks = computed(() => {
       date,
       time,
       stadium: stadiums.get(g.home_team) ?? '',
+      home_score: g.home_score,
+      away_score: g.away_score,
     })
   }
 
@@ -256,9 +258,7 @@ function openCalendarMenu() {
                     <div class="w-14 h-14 overflow-hidden flex items-center justify-center">
                       <TeamLogo :name="g.home" :size="56" />
                     </div>
-                    <span class="text-xs font-semibold text-center leading-tight">{{
-                      g.home
-                    }}</span>
+                    <span class="text-xs font-semibold text-center leading-tight">{{ g.home }}</span>
                     <span
                       class="flex items-center gap-1 text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium"
                     >
@@ -270,18 +270,30 @@ function openCalendarMenu() {
                       Local
                     </span>
                   </div>
-                  <!-- VS -->
-                  <span class="text-slate-300 dark:text-slate-600 font-black text-sm shrink-0"
-                    >VS</span
-                  >
+                  <!-- Score / VS -->
+                  <div class="flex flex-col items-center shrink-0">
+                    <template v-if="g.home_score !== null && g.away_score !== null">
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          class="text-xl font-black"
+                          :class="g.home_score >= g.away_score ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
+                        >{{ g.home_score }}</span>
+                        <span class="text-slate-300 dark:text-slate-600 font-bold text-sm">–</span>
+                        <span
+                          class="text-xl font-black"
+                          :class="g.away_score >= g.home_score ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
+                        >{{ g.away_score }}</span>
+                      </div>
+                      <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Final</span>
+                    </template>
+                    <span v-else class="text-slate-300 dark:text-slate-600 font-black text-sm">VS</span>
+                  </div>
                   <!-- Away -->
                   <div class="flex flex-col items-center gap-1 flex-1">
                     <div class="w-14 h-14 overflow-hidden flex items-center justify-center">
                       <TeamLogo :name="g.away" :size="56" />
                     </div>
-                    <span class="text-xs font-semibold text-center leading-tight">{{
-                      g.away
-                    }}</span>
+                    <span class="text-xs font-semibold text-center leading-tight">{{ g.away }}</span>
                     <span
                       class="flex items-center gap-1 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-medium"
                     >
