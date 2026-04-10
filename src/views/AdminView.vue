@@ -18,7 +18,7 @@ function localValue(startsAt: string): string {
 }
 
 function localDate(id: string, startsAt: string): string {
-  return (timeEdits.value[id] ?? localValue(startsAt)).split('T')[0]
+  return (timeEdits.value[id] ?? localValue(startsAt)).split('T')[0] ?? ''
 }
 
 function localTime(id: string, startsAt: string): string {

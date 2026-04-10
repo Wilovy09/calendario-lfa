@@ -57,7 +57,7 @@ export async function updateGameScore(
 
 export async function updateGameTime(id: string, mexicoDateTimeLocal: string): Promise<void> {
   // mexicoDateTimeLocal is "YYYY-MM-DDTHH:MM" in America/Mexico_City (UTC-6, no DST)
-  const [datePart, timePart] = mexicoDateTimeLocal.split('T')
+  const [datePart = '', timePart = ''] = mexicoDateTimeLocal.split('T')
   const [y, m, d] = datePart.split('-').map(Number) as [number, number, number]
   const [h, min] = timePart.split(':').map(Number) as [number, number]
   const starts_at = new Date(Date.UTC(y, m - 1, d, h + 6, min)).toISOString()
