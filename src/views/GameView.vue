@@ -45,6 +45,8 @@ const game = computed(() => {
     stadium: homeTeam?.stadium ?? '',
     coords: homeTeam?.coords,
     website: homeTeam?.website ?? null,
+    home_score: remote.home_score,
+    away_score: remote.away_score,
   }
 })
 
@@ -93,6 +95,15 @@ const isVoteLocked = computed(() => {
   return Date.now() >= new Date(game.value.starts_at).getTime() - 30 * 60 * 1000
 })
 
+const winner = computed((): 'home' | 'away' | 'tie' | null => {
+  if (!game.value) return null
+  const { home_score, away_score } = game.value
+  if (home_score === null || away_score === null) return null
+  if (home_score > away_score) return 'home'
+  if (away_score > home_score) return 'away'
+  return 'tie'
+})
+
 async function togglePick(choice: 'home' | 'away') {
   if (!auth.user) {
     auth.signInWithGoogle()
@@ -121,8 +132,24 @@ async function togglePick(choice: 'home' | 'away') {
               </div>
             </div>
 
-            <!-- VS -->
-            <span class="text-2xl font-black text-slate-300 dark:text-slate-600 shrink-0">VS</span>
+            <!-- Score / VS -->
+            <div class="flex flex-col items-center shrink-0">
+              <template v-if="game.home_score !== null && game.away_score !== null">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="text-3xl font-black"
+                    :class="game.home_score > game.away_score ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
+                  >{{ game.home_score }}</span>
+                  <span class="text-slate-300 dark:text-slate-600 font-bold text-lg">–</span>
+                  <span
+                    class="text-3xl font-black"
+                    :class="game.away_score > game.home_score ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'"
+                  >{{ game.away_score }}</span>
+                </div>
+                <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mt-0.5">Final</span>
+              </template>
+              <span v-else class="text-2xl font-black text-slate-300 dark:text-slate-600">VS</span>
+            </div>
 
             <!-- Away -->
             <div class="flex flex-col items-center gap-2 flex-1">
@@ -203,10 +230,10 @@ async function togglePick(choice: 'home' | 'away') {
                 :disabled="isVoteLocked"
                 :class="[
                   'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
-                  isVoteLocked
-                    ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-d-border'
-                    : pick === 'home'
-                      ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                  pick === 'home'
+                    ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                    : isVoteLocked
+                      ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-d-border'
                       : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
                 ]"
               >
@@ -223,10 +250,10 @@ async function togglePick(choice: 'home' | 'away') {
                 :disabled="isVoteLocked"
                 :class="[
                   'flex-1 flex flex-col items-center gap-2 py-4 rounded-xl border-2 transition-all',
-                  isVoteLocked
-                    ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-d-border'
-                    : pick === 'away'
-                      ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                  pick === 'away'
+                    ? 'border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-900/10'
+                    : isVoteLocked
+                      ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-d-border'
                       : 'border-slate-200 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500',
                 ]"
               >
