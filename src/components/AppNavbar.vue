@@ -20,7 +20,7 @@ const props = withDefaults(
 const BASE_URL = import.meta.env.BASE_URL
 const { isDark, sync, toggle } = useTheme()
 const authStore = useAuthStore()
-const { user } = storeToRefs(authStore)
+const { user, isAdmin } = storeToRefs(authStore)
 const { signOut } = authStore
 onMounted(sync)
 </script>
@@ -57,6 +57,14 @@ onMounted(sync)
     </div>
 
     <div class="flex items-center gap-2">
+      <RouterLink
+        v-if="isAdmin"
+        :to="{ name: 'admin' }"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors text-xs font-bold"
+        aria-label="Admin"
+      >
+        Admin
+      </RouterLink>
       <button
         v-if="props.themeToggle"
         @click="toggle"
