@@ -9,6 +9,14 @@ export type RemoteGame = {
   starts_at: string
   home_score: number | null
   away_score: number | null
+  q1_home: number | null
+  q1_away: number | null
+  q2_home: number | null
+  q2_away: number | null
+  q3_home: number | null
+  q3_away: number | null
+  q4_home: number | null
+  q4_away: number | null
 }
 
 // Convierte starts_at (UTC) a fecha y hora en zona horaria de México (UTC-6 permanente desde 2023)
@@ -34,7 +42,7 @@ async function fetchGames() {
   fetched = true
   const { data } = await supabase
     .from('games')
-    .select('id, week, home_team, away_team, starts_at, home_score, away_score')
+    .select('id, week, home_team, away_team, starts_at, home_score, away_score, q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away')
     .order('starts_at')
   games.value = data ?? []
   loading.value = false
