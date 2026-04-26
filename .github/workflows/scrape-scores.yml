@@ -1,0 +1,32 @@
+name: Scrape LFA Scores
+
+on:
+  schedule:
+    # Lunes 14:00 UTC = 8am Ciudad de México (después de jornada dominical)
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+        working-directory: scripts
+
+      - name: Run scraper
+        run: node scrape-scores.mjs
+        working-directory: scripts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
