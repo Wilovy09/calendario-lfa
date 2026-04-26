@@ -20,6 +20,11 @@ const router = createRouter({
       component: () => import('../views/GameView.vue'),
     },
     {
+      path: '/leaderboard',
+      name: 'leaderboard',
+      component: () => import('../views/LeaderboardView.vue'),
+    },
+    {
       path: '/privacidad',
       name: 'privacy',
       component: () => import('../views/PrivacyView.vue'),
