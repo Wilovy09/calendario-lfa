@@ -47,6 +47,12 @@ const game = computed(() => {
     website: homeTeam?.website ?? null,
     home_score: remote.home_score,
     away_score: remote.away_score,
+    quarters: [
+      { label: 'Q1', home: remote.q1_home, away: remote.q1_away },
+      { label: 'Q2', home: remote.q2_home, away: remote.q2_away },
+      { label: 'Q3', home: remote.q3_home, away: remote.q3_away },
+      { label: 'Q4', home: remote.q4_home, away: remote.q4_away },
+    ],
   }
 })
 
@@ -155,6 +161,20 @@ async function togglePick(choice: 'home' | 'away') {
             <div class="flex flex-col items-center gap-2 flex-1">
               <div class="w-24 h-24 overflow-hidden flex items-center justify-center">
                 <TeamLogo :name="game.away" :size="96" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Quarter scores -->
+          <div
+            v-if="game.home_score !== null && game.quarters.some(q => q.home !== null)"
+            class="mt-4 border-t border-slate-100 dark:border-d-border pt-4"
+          >
+            <div class="grid grid-cols-4 gap-2 text-center">
+              <div v-for="q in game.quarters" :key="q.label" class="flex flex-col gap-1.5">
+                <span class="text-xs text-slate-400 font-medium">{{ q.label }}</span>
+                <span class="text-base font-bold text-slate-900 dark:text-white">{{ q.home ?? '–' }}</span>
+                <span class="text-base font-bold text-slate-500 dark:text-slate-400">{{ q.away ?? '–' }}</span>
               </div>
             </div>
           </div>
