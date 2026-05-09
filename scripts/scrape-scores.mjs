@@ -75,13 +75,33 @@ async function scrapeGame(page, game) {
         .filter(Boolean),
   )
 
-  if (quarters.length === 0) {
-    console.log(`  skip: no quarter data for ${game.id}`)
+  const finalScore = await page.$eval(
+    '.detailScore__wrapper',
+    (el) => {
+      const spans = [...el.querySelectorAll('span')].filter(
+        (s) => !s.classList.contains('detailScore__divider'),
+      )
+      const home = parseInt(spans[0]?.textContent?.trim(), 10)
+      const away = parseInt(spans[1]?.textContent?.trim(), 10)
+      return Number.isFinite(home) && Number.isFinite(away) ? { home, away } : null
+    },
+  ).catch(() => null)
+
+  if (quarters.length === 0 && !finalScore) {
+    console.log(`  skip: no score data for ${game.id}`)
     return null
   }
 
-  const home_score = quarters.reduce((sum, q) => sum + q.home, 0)
-  const away_score = quarters.reduce((sum, q) => sum + q.away, 0)
+  const home_score = quarters.length > 0
+    ? quarters.reduce((sum, q) => sum + q.home, 0)
+    : finalScore.home
+  const away_score = quarters.length > 0
+    ? quarters.reduce((sum, q) => sum + q.away, 0)
+    : finalScore.away
+
+  if (quarters.length === 0) {
+    console.log(`  fallback to final score: ${home_score} - ${away_score}`)
+  }
 
   const byQuarter = {
     q1_home: quarters[0]?.home ?? null, q1_away: quarters[0]?.away ?? null,
