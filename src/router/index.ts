@@ -25,6 +25,11 @@ const router = createRouter({
       component: () => import('../views/LeaderboardView.vue'),
     },
     {
+      path: '/posiciones',
+      name: 'standings',
+      component: () => import('../views/StandingsView.vue'),
+    },
+    {
       path: '/privacidad',
       name: 'privacy',
       component: () => import('../views/PrivacyView.vue'),
