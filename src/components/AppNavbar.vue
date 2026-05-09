@@ -58,8 +58,17 @@ onMounted(sync)
 
     <div class="flex items-center gap-2">
       <RouterLink
+        :to="{ name: 'standings' }"
+        class="hidden sm:flex p-2 rounded-lg bg-d-card hover:bg-d-raised transition-colors leading-none"
+        aria-label="Posiciones"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3h18v18H3z"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/>
+        </svg>
+      </RouterLink>
+      <RouterLink
         :to="{ name: 'leaderboard' }"
-        class="p-2 rounded-lg bg-d-card hover:bg-d-raised transition-colors leading-none"
+        class="hidden sm:flex p-2 rounded-lg bg-d-card hover:bg-d-raised transition-colors leading-none"
         aria-label="Leaderboard"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -89,7 +98,7 @@ onMounted(sync)
       <button
         v-if="user"
         @click="signOut"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-d-card hover:bg-d-raised transition-colors"
+        class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-d-card hover:bg-d-raised transition-colors"
         aria-label="Cerrar sesión"
       >
         <span class="text-sm font-medium">{{ user.user_metadata.full_name }}</span>
@@ -98,7 +107,7 @@ onMounted(sync)
       <RouterLink
         v-else
         :to="{ name: 'login' }"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-d-card hover:bg-d-raised transition-colors"
+        class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-d-card hover:bg-d-raised transition-colors"
         aria-label="Iniciar sesión"
       >
         <span class="text-sm font-medium">Iniciar sesión</span>
