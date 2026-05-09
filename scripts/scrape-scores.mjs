@@ -93,6 +93,58 @@ async function scrapeGame(page, game) {
   return { quarters, home_score, away_score, ...byQuarter }
 }
 
+const STANDINGS_URL = 'https://www.flashscore.com.mx/futbol-americano/mexico/lfa/clasificacion/'
+
+async function scrapeStandings(page) {
+  await page.goto(STANDINGS_URL, { waitUntil: 'domcontentloaded' })
+  await dismissCookies(page)
+
+  try {
+    await page.waitForSelector('.ui-table__body', { timeout: 12000 })
+  } catch {
+    console.log('  skip: standings table did not load')
+    return []
+  }
+
+  return page.$$eval('.ui-table__body .ui-table__row', (rows) =>
+    rows.map((row, i) => {
+      const rankEl = row.querySelector('.tableCellRank')
+      const position = i + 1
+      const classification = rankEl?.getAttribute('title') ?? ''
+
+      const team = row.querySelector('.tableCellParticipant__name')?.textContent?.trim() ?? ''
+
+      const values = [...row.querySelectorAll('span.table__cell--value')]
+        .map((s) => s.textContent?.trim() ?? '')
+      const [pj, wins, draws, losses, pts, winPct] = values
+      const [pts_for, pts_against] = (pts ?? '').split(':').map((v) => parseInt(v, 10))
+
+      const formBadges = [...row.querySelectorAll('[data-testid^="wcl-badgeForm"]')]
+      const form = formBadges.map((el) => {
+        const t = el.getAttribute('data-testid') ?? ''
+        if (t.includes('win')) return 'G'
+        if (t.includes('lose')) return 'P'
+        if (t.includes('draw')) return 'E'
+        return '?'
+      })
+
+      return {
+        position,
+        team,
+        pj: parseInt(pj, 10) || 0,
+        wins: parseInt(wins, 10) || 0,
+        draws: parseInt(draws, 10) || 0,
+        losses: parseInt(losses, 10) || 0,
+        pts_for: pts_for || 0,
+        pts_against: pts_against || 0,
+        win_pct: parseFloat(winPct) || 0,
+        form,
+        classification,
+      }
+    }).filter((r) => r.team !== ''),
+  )
+}
+
 async function main() {
   const browser = await chromium.launch()
   const page = await browser.newPage()
@@ -131,6 +183,21 @@ async function main() {
     }
 
     await page.waitForTimeout(800)
+  }
+
+  console.log('\nScraping standings...')
+  const standings = await scrapeStandings(page)
+
+  if (standings.length > 0) {
+    console.log(`  Found ${standings.length} teams`)
+    const { error } = await supabase.from('standings').upsert(standings, { onConflict: 'team' })
+    if (error) {
+      console.error('  ERROR upserting standings:', error.message)
+    } else {
+      console.log('  OK')
+    }
+  } else {
+    console.log('  No standings data found')
   }
 
   await browser.close()
