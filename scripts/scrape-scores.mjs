@@ -48,7 +48,14 @@ async function dismissCookies(page) {
 }
 
 async function scrapeGame(page, game) {
-  const url = `https://www.flashscore.com.mx/partido/futbol-americano/${TEAMS[game.home]}/${TEAMS[game.away]}/`
+  const homeSlug = TEAMS[game.home]
+  const awaySlug = TEAMS[game.away]
+  if (!homeSlug || !awaySlug) {
+    console.log(`  skip: unknown team slugs for ${game.id}`)
+    return null
+  }
+  const base = `https://www.flashscore.com.mx/partido/futbol-americano/${homeSlug}/${awaySlug}/`
+  const url = game.mid ? `${base}?mid=${game.mid}` : base
 
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   await dismissCookies(page)
@@ -113,6 +120,95 @@ async function scrapeGame(page, game) {
   return { quarters, home_score, away_score, ...byQuarter }
 }
 
+async function scrapeUpcoming(page) {
+  await page.goto('https://www.flashscore.com.mx/futbol-americano/mexico/lfa/', { waitUntil: 'domcontentloaded' })
+  await dismissCookies(page)
+
+  try {
+    await page.waitForSelector('.leagues--static', { timeout: 12000 })
+  } catch {
+    console.log('  skip: LFA page did not load')
+    return []
+  }
+
+  return page.evaluate(() => {
+    const results = []
+
+    for (const container of document.querySelectorAll('.leagues--static')) {
+      const leagueTitle = container.querySelector('.headerLeague__title')?.getAttribute('title') ?? ''
+      if (!leagueTitle.includes('Playoffs')) continue
+
+      let currentRound = null
+
+      for (const el of container.children) {
+        if (el.classList.contains('event__round--static')) {
+          currentRound = el.textContent?.trim() ?? null
+          continue
+        }
+        if (!el.classList.contains('event__match')) continue
+
+        const mid = el.id?.split('_').pop() ?? null
+        const home = el.querySelector('.event__homeParticipant .wcl-name_jjfMf')?.textContent?.trim() ?? ''
+        const away = el.querySelector('.event__awayParticipant .wcl-name_jjfMf')?.textContent?.trim() ?? ''
+
+        const timeText = el.querySelector('.event__time')?.childNodes[0]?.textContent?.trim() ?? ''
+        const m = timeText.match(/(\d{1,2})\.(\d{1,2})\.\s*(\d{2}):(\d{2})/)
+        let starts_at = null
+        if (m) {
+          const [, d, mo, h, min] = m
+          const year = new Date().getFullYear()
+          starts_at = `${year}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T${h}:${min}:00-06:00`
+        }
+
+        if (mid && home && away) {
+          results.push({ mid, home, away, starts_at, round: currentRound })
+        }
+      }
+    }
+
+    return results
+  })
+}
+
+async function insertNewPlayoffGames(games) {
+  let inserted = 0
+  for (const g of games) {
+    const { data: existing } = await supabase
+      .from('games')
+      .select('id')
+      .eq('flashscore_mid', g.mid)
+      .maybeSingle()
+
+    if (existing) continue
+
+    const roundSlug = (g.round ?? 'playoff')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\s+/g, '-')
+    const homeSlug = g.home.toLowerCase().replace(/\s+/g, '-')
+    const awaySlug = g.away.toLowerCase().replace(/\s+/g, '-')
+    const id = `playoff-${roundSlug}-${homeSlug}-vs-${awaySlug}`
+
+    const { error } = await supabase.from('games').insert({
+      id,
+      home_team: g.home,
+      away_team: g.away,
+      starts_at: g.starts_at ?? new Date().toISOString(),
+      game_type: 'playoff',
+      round: g.round,
+      flashscore_mid: g.mid,
+    })
+
+    if (error) {
+      console.error(`  ERROR inserting ${id}:`, error.message)
+    } else {
+      console.log(`  Inserted: ${id}`)
+      inserted++
+    }
+  }
+  return inserted
+}
+
 const STANDINGS_URL = 'https://www.flashscore.com.mx/futbol-americano/mexico/lfa/clasificacion/'
 
 async function scrapeStandings(page) {
@@ -165,6 +261,27 @@ async function scrapeStandings(page) {
   )
 }
 
+async function scrapeAndUpdateScore(page, game) {
+  const result = await scrapeGame(page, game)
+  if (!result) return false
+
+  console.log(`  quarters:`, result.quarters.map((q) => `${q.name} ${q.home}-${q.away}`).join(', '))
+  console.log(`  final: ${result.home_score} - ${result.away_score}`)
+
+  const { q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away } = result
+  const { error } = await supabase
+    .from('games')
+    .update({ home_score: result.home_score, away_score: result.away_score, q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away })
+    .eq('id', game.id)
+
+  if (error) {
+    console.error(`  ERROR updating ${game.id}:`, error.message)
+    return false
+  }
+  console.log(`  OK`)
+  return true
+}
+
 async function main() {
   const browser = await chromium.launch()
   const page = await browser.newPage()
@@ -173,35 +290,34 @@ async function main() {
     'Accept-Language': 'es-MX,es;q=0.9',
   })
 
+  // 1. Discover and insert new playoff games
+  console.log('Discovering upcoming playoff games...')
+  const upcoming = await scrapeUpcoming(page)
+  console.log(`  Found ${upcoming.length} upcoming playoff games`)
+  const inserted = await insertNewPlayoffGames(upcoming)
+  console.log(`  Inserted ${inserted} new games`)
+
   let updated = 0
   let skipped = 0
 
+  // 2. Scrape scores for regular season games
   for (const game of GAMES) {
     console.log(`Scraping ${game.id}...`)
+    const ok = await scrapeAndUpdateScore(page, game)
+    if (ok) updated++; else skipped++
+    await page.waitForTimeout(800)
+  }
 
-    const result = await scrapeGame(page, game)
+  // 3. Scrape scores for playoff games in DB
+  const { data: playoffGames } = await supabase
+    .from('games')
+    .select('id, home_team, away_team, flashscore_mid')
+    .eq('game_type', 'playoff')
 
-    if (!result) {
-      skipped++
-      continue
-    }
-
-    console.log(`  quarters:`, result.quarters.map((q) => `${q.name} ${q.home}-${q.away}`).join(', '))
-    console.log(`  final: ${result.home_score} - ${result.away_score}`)
-
-    const { q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away } = result
-    const { error } = await supabase
-      .from('games')
-      .update({ home_score: result.home_score, away_score: result.away_score, q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away })
-      .eq('id', game.id)
-
-    if (error) {
-      console.error(`  ERROR updating ${game.id}:`, error.message)
-    } else {
-      console.log(`  OK`)
-      updated++
-    }
-
+  for (const g of (playoffGames ?? [])) {
+    console.log(`Scraping playoff ${g.id}...`)
+    const ok = await scrapeAndUpdateScore(page, { id: g.id, home: g.home_team, away: g.away_team, mid: g.flashscore_mid })
+    if (ok) updated++; else skipped++
     await page.waitForTimeout(800)
   }
 
@@ -221,7 +337,7 @@ async function main() {
   }
 
   await browser.close()
-  console.log(`\nDone: ${updated} updated, ${skipped} skipped`)
+  console.log(`\nDone: ${inserted} inserted, ${updated} updated, ${skipped} skipped`)
 }
 
 main().catch((err) => {

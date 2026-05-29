@@ -26,22 +26,19 @@ const fmt = (d: string) => {
     month: 'short',
   })
 }
-const sid = (n: string) => n.replace(/\s+/g, '-')
-const gameId = (week: number, home: string, away: string) =>
-  `s${week}-${sid(home).toLowerCase()}-vs-${sid(away).toLowerCase()}`
-
 // ─── Build weeks data desde Supabase ──────────────────────────────────────────
-type WeekGame = { home: string; away: string; date: string; time: string; stadium: string; home_score: number | null; away_score: number | null }
+type WeekGame = { id: string; home: string; away: string; date: string; time: string; stadium: string; home_score: number | null; away_score: number | null }
 type WeekData = { games: WeekGame[]; byes: string[] }
 
 const weeks = computed(() => {
   const weekMap = new Map<number, WeekData>()
 
-  // Juegos desde Supabase
   for (const g of remoteGames.value) {
+    if (g.game_type !== 'regular' || g.week === null) continue
     if (!weekMap.has(g.week)) weekMap.set(g.week, { games: [], byes: [] })
     const { date, time } = gameLocalTime(g.starts_at)
     weekMap.get(g.week)!.games.push({
+      id: g.id,
       home: g.home_team,
       away: g.away_team,
       date,
@@ -52,7 +49,6 @@ const weeks = computed(() => {
     })
   }
 
-  // Byes siguen viniendo de lfa_games
   for (const [name, team] of lfa_games) {
     for (const g of team.games ?? []) {
       if (g.goodbye) {
@@ -65,12 +61,94 @@ const weeks = computed(() => {
   return [...weekMap.entries()].sort(([a], [b]) => a - b)
 })
 
+const playoffRounds = computed(() => {
+  const roundMap = new Map<string, WeekGame[]>()
+  for (const g of remoteGames.value) {
+    if (g.game_type !== 'playoff') continue
+    const round = g.round ?? 'Playoffs'
+    if (!roundMap.has(round)) roundMap.set(round, [])
+    const { date, time } = gameLocalTime(g.starts_at)
+    roundMap.get(round)!.push({
+      id: g.id,
+      home: g.home_team,
+      away: g.away_team,
+      date,
+      time,
+      stadium: stadiums.get(g.home_team) ?? '',
+      home_score: g.home_score,
+      away_score: g.away_score,
+    })
+  }
+  // Sort: most games first (earliest round)
+  return [...roundMap.entries()].sort(([, a], [, b]) => b.length - a.length)
+})
+
+// ─── Bracket: pad missing rounds with empty placeholder slots ─────────────────
+const NEXT_ROUND_LABEL: Record<number, string> = {
+  16: 'Octavos de final',
+  8: 'Cuartos de final',
+  4: 'Semifinales',
+  2: 'Final',
+}
+
+const bracketRounds = computed((): [string, WeekGame[]][] => {
+  const rounds: [string, WeekGame[]][] = [...playoffRounds.value]
+  // Keep appending empty placeholder rounds until we reach 1 game (Final)
+  for (;;) {
+    const last = rounds[rounds.length - 1]
+    const n = last?.[1].length ?? 0
+    if (n <= 1) break
+    const nextN = Math.ceil(n / 2)
+    const nextLabel = NEXT_ROUND_LABEL[n] ?? 'Siguiente ronda'
+    const empty: WeekGame[] = Array.from({ length: nextN }, (_, i) => ({
+      id: `__empty-${nextLabel}-${i}`,
+      home: '', away: '', date: '', time: '', stadium: '',
+      home_score: null, away_score: null,
+    }))
+    rounds.push([nextLabel, empty])
+  }
+  return rounds
+})
+
+// ─── Bracket exact geometry (pixel-perfect absolute positioning) ──────────────
+const B_CARD = 70   // game card height px
+const B_GAP  = 20   // gap between cards within a round
+const B_HDR  = 28   // header row height px
+
+const bracketMaxGames = computed(() =>
+  bracketRounds.value.length > 0 ? bracketRounds.value[0]![1].length : 1
+)
+const bracketTotalH = computed(() =>
+  B_HDR + bracketMaxGames.value * B_CARD + (bracketMaxGames.value - 1) * B_GAP
+)
+
+// Center of game gIdx in round rIdx (relative to bracket content area, i.e., below header)
+function bCenter(roundIdx: number, gameIdx: number): number {
+  if (roundIdx === 0) return gameIdx * (B_CARD + B_GAP) + B_CARD / 2
+  return (bCenter(roundIdx - 1, gameIdx * 2) + bCenter(roundIdx - 1, gameIdx * 2 + 1)) / 2
+}
+function bCardTop(roundIdx: number, gameIdx: number): number {
+  return bCenter(roundIdx, gameIdx) - B_CARD / 2
+}
+function bConnVert(roundIdx: number, pairIdx: number): Record<string, string> {
+  const c0 = bCenter(roundIdx, pairIdx * 2)
+  const c1 = bCenter(roundIdx, pairIdx * 2 + 1)
+  return { position: 'absolute', top: `${B_HDR + c0}px`, height: `${c1 - c0}px`, left: '0', right: '0' }
+}
+function bConnHoriz(roundIdx: number, pairIdx: number): Record<string, string> {
+  const mid = (bCenter(roundIdx, pairIdx * 2) + bCenter(roundIdx, pairIdx * 2 + 1)) / 2
+  return { position: 'absolute', top: `${B_HDR + mid}px`, left: '0', right: '0' }
+}
+
 // ─── Local state ──────────────────────────────────────────────────────────────
 const showCalendarMenu = ref(false)
 const calendarStep = ref<'options' | 'google'>('options')
 
 type ScheduleRow = {
-  week: number
+  id: string
+  week: number | null
+  round: string | null
+  game_type: string
   rival: string
   date: string
   time: string
@@ -82,22 +160,20 @@ const teamSchedule = computed((): ScheduleRow[] => {
   const name = activeTeam.value
   const rows: ScheduleRow[] = []
 
-  // Juegos desde Supabase
   for (const g of remoteGames.value) {
     const { date, time } = gameLocalTime(g.starts_at)
     if (g.home_team === name) {
-      rows.push({ week: g.week, rival: g.away_team, date, time, isHome: true })
+      rows.push({ id: g.id, week: g.week, round: g.round, game_type: g.game_type, rival: g.away_team, date, time, isHome: true })
     } else if (g.away_team === name) {
-      rows.push({ week: g.week, rival: g.home_team, date, time, isHome: false })
+      rows.push({ id: g.id, week: g.week, round: g.round, game_type: g.game_type, rival: g.home_team, date, time, isHome: false })
     }
   }
 
-  // Byes desde lfa_games
   for (const g of lfa_games.find(([n]) => n === name)?.[1].games ?? []) {
-    if (g.goodbye) rows.push({ week: g.week, rival: '', date: g.date, time: '', isHome: true, goodbye: true })
+    if (g.goodbye) rows.push({ id: `bye-${g.week}`, week: g.week, round: null, game_type: 'regular', rival: '', date: g.date, time: '', isHome: true, goodbye: true })
   }
 
-  return rows.sort((a, b) => a.week - b.week)
+  return rows.sort((a, b) => (a.week ?? 99) - (b.week ?? 99))
 })
 
 function googleCalendarUrl(g: ScheduleRow): string {
@@ -154,6 +230,19 @@ function openCalendarMenu() {
           ]"
         >
           Por Equipo
+        </button>
+        <button
+          v-if="!gamesLoading && playoffRounds.length > 0"
+          @click="view = 'playoffs'"
+          :class="[
+            'px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5',
+            view === 'playoffs'
+              ? 'bg-white dark:bg-d-raised shadow text-slate-900 dark:text-white'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
+          ]"
+        >
+          <span>Playoffs</span>
+          <span v-if="playoffRounds.length > 0" class="text-amber-500">🏆</span>
         </button>
       </div>
 
@@ -245,8 +334,8 @@ function openCalendarMenu() {
             >
               <RouterLink
                 v-for="g in data.games"
-                :key="gameId(w, g.home, g.away)"
-                :to="`/game/${gameId(w, g.home, g.away)}`"
+                :key="g.id"
+                :to="`/game/${g.id}`"
                 class="block bg-white dark:bg-d-card rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-d-border hover:border-amber-400 dark:hover:border-amber-500 transition-colors"
               >
                 <p class="text-xs font-medium text-slate-400 dark:text-slate-500 mb-3">
@@ -334,6 +423,177 @@ function openCalendarMenu() {
             </div>
           </div>
         </template>
+      </div>
+
+      <!-- ════ VISTA: PLAYOFFS BRACKET ════ -->
+      <div v-show="view === 'playoffs' && !gamesLoading">
+        <div v-if="playoffRounds.length === 0" class="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
+          <span class="text-4xl">🏆</span>
+          <p class="text-sm font-medium">Los playoffs aún no han comenzado</p>
+        </div>
+
+        <div v-else class="overflow-x-auto -mx-4 px-4 py-2 pb-4">
+          <div class="inline-flex">
+
+            <template v-for="([round, games], rIdx) in bracketRounds" :key="round">
+
+              <!-- Round column: fixed width, exact height -->
+              <div class="relative shrink-0" style="width: 204px" :style="{ height: `${bracketTotalH}px` }">
+
+                <!-- Round header -->
+                <div
+                  class="absolute inset-x-0 top-0 flex items-center justify-center"
+                  :style="{ height: `${B_HDR}px` }"
+                >
+                  <span
+                    class="text-[10px] font-bold uppercase tracking-widest"
+                    :class="rIdx === bracketRounds.length - 1 ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'"
+                  >{{ round }}</span>
+                </div>
+
+                <!-- Game cards: absolute position, pixel-exact -->
+                <template v-for="(g, gIdx) in games" :key="g.id">
+
+                  <!-- ── Placeholder card (empty slot, round not yet determined) ── -->
+                  <div
+                    v-if="g.home === ''"
+                    class="absolute rounded-lg border border-dashed border-slate-200 dark:border-slate-700 overflow-hidden"
+                    :style="{
+                      top: `${B_HDR + bCardTop(rIdx, gIdx)}px`,
+                      left: '0', right: '0',
+                      height: `${B_CARD}px`,
+                    }"
+                  >
+                    <div
+                      class="flex items-center gap-2 px-3 bg-white dark:bg-d-card border-b border-slate-100 dark:border-d-border"
+                      :style="{ height: `${B_CARD / 2}px` }"
+                    >
+                      <div class="w-[18px] h-[18px] rounded-full bg-slate-100 dark:bg-slate-700 shrink-0" />
+                      <div class="h-2 rounded bg-slate-100 dark:bg-slate-700/60 flex-1" />
+                    </div>
+                    <div
+                      class="flex items-center gap-2 px-3 bg-white dark:bg-d-card"
+                      :style="{ height: `${B_CARD / 2}px` }"
+                    >
+                      <div class="w-[18px] h-[18px] rounded-full bg-slate-100 dark:bg-slate-700 shrink-0" />
+                      <div class="h-2 rounded bg-slate-100 dark:bg-slate-700/60 flex-1" />
+                    </div>
+                  </div>
+
+                  <!-- ── Real game card ── -->
+                  <RouterLink
+                    v-else
+                    :to="`/game/${g.id}`"
+                    class="absolute block rounded-lg overflow-hidden shadow-sm hover:shadow-md hover:ring-2 hover:ring-amber-400/50 dark:hover:ring-amber-500/50 transition-all"
+                    :style="{
+                      top: `${B_HDR + bCardTop(rIdx, gIdx)}px`,
+                      left: '0', right: '0',
+                      height: `${B_CARD}px`,
+                    }"
+                  >
+                    <!-- Home row -->
+                    <div
+                      class="flex items-center gap-2 pr-3 bg-white dark:bg-d-card border-b border-slate-100 dark:border-d-border"
+                      :style="{ height: `${B_CARD / 2}px` }"
+                    >
+                      <div
+                        class="self-stretch w-[3px] shrink-0"
+                        :class="g.home_score !== null && g.home_score > (g.away_score ?? -1) ? 'bg-amber-400' : 'bg-transparent'"
+                      />
+                      <div class="w-[18px] h-[18px] shrink-0 flex items-center justify-center">
+                        <TeamLogo :name="g.home" :size="18" />
+                      </div>
+                      <span
+                        class="text-xs flex-1 truncate"
+                        :class="
+                          g.home_score !== null && g.home_score > (g.away_score ?? -1)
+                            ? 'font-semibold text-slate-900 dark:text-white'
+                            : g.away_score !== null && g.away_score > (g.home_score ?? -1)
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'font-medium text-slate-700 dark:text-slate-300'
+                        "
+                      >{{ g.home }}</span>
+                      <span
+                        class="text-sm font-black tabular-nums w-5 text-right shrink-0"
+                        :class="
+                          g.home_score !== null && g.home_score > (g.away_score ?? -1)
+                            ? 'text-amber-500'
+                            : g.home_score !== null
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'invisible'
+                        "
+                      >{{ g.home_score ?? 0 }}</span>
+                    </div>
+                    <!-- Away row -->
+                    <div
+                      class="flex items-center gap-2 pr-3 bg-white dark:bg-d-card"
+                      :style="{ height: `${B_CARD / 2}px` }"
+                    >
+                      <div
+                        class="self-stretch w-[3px] shrink-0"
+                        :class="g.away_score !== null && g.away_score > (g.home_score ?? -1) ? 'bg-amber-400' : 'bg-transparent'"
+                      />
+                      <div class="w-[18px] h-[18px] shrink-0 flex items-center justify-center">
+                        <TeamLogo :name="g.away" :size="18" />
+                      </div>
+                      <span
+                        class="text-xs flex-1 truncate"
+                        :class="
+                          g.away_score !== null && g.away_score > (g.home_score ?? -1)
+                            ? 'font-semibold text-slate-900 dark:text-white'
+                            : g.home_score !== null && g.home_score > (g.away_score ?? -1)
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'font-medium text-slate-700 dark:text-slate-300'
+                        "
+                      >{{ g.away }}</span>
+                      <span
+                        class="text-sm font-black tabular-nums w-5 text-right shrink-0"
+                        :class="
+                          g.away_score !== null && g.away_score > (g.home_score ?? -1)
+                            ? 'text-amber-500'
+                            : g.away_score !== null
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'invisible'
+                        "
+                      >{{ g.away_score ?? 0 }}</span>
+                    </div>
+                  </RouterLink>
+
+                </template>
+              </div>
+
+              <!-- Connector column (not after last round) -->
+              <template v-if="rIdx < bracketRounds.length - 1">
+                <div
+                  class="relative shrink-0"
+                  style="width: 28px"
+                  :style="{ height: `${bracketTotalH}px` }"
+                >
+                  <template v-for="pairIdx in Math.ceil(games.length / 2)" :key="pairIdx">
+                    <div
+                      class="absolute border-r border-slate-300 dark:border-slate-600"
+                      :style="bConnVert(rIdx, pairIdx - 1)"
+                    />
+                    <div
+                      class="absolute border-b border-slate-300 dark:border-slate-600"
+                      :style="bConnHoriz(rIdx, pairIdx - 1)"
+                    />
+                  </template>
+                </div>
+              </template>
+
+            </template>
+
+            <!-- Trophy: centered on final game -->
+            <div class="relative shrink-0 pl-3" :style="{ height: `${bracketTotalH}px` }">
+              <span
+                class="absolute text-3xl leading-none"
+                :style="{ top: `${B_HDR + bCenter(playoffRounds.length - 1, 0) - 14}px`, left: '12px' }"
+              >🏆</span>
+            </div>
+
+          </div>
+        </div>
       </div>
 
       <!-- ════ VISTA: POR EQUIPO ════ -->
@@ -483,17 +743,14 @@ function openCalendarMenu() {
                     </div>
                     <a
                       v-for="g in teamSchedule.filter((g) => !g.goodbye)"
-                      :key="g.week"
+                      :key="g.id"
                       :href="googleCalendarUrl(g)"
                       target="_blank"
                       rel="noopener"
                       @click="showCalendarMenu = false"
                       class="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-d-raised transition-colors"
                     >
-                      <span
-                        class="text-amber-500 font-black text-base w-5 text-center leading-none"
-                        >{{ g.week }}</span
-                      >
+                      <span class="text-amber-500 font-black text-base w-5 text-center leading-none">{{ g.week ?? '🏆' }}</span>
                       <span class="flex-1 min-w-0">
                         <span class="font-medium">{{ g.isHome ? activeTeam : g.rival }}</span>
                         <span class="text-slate-400"> vs </span>
@@ -525,14 +782,20 @@ function openCalendarMenu() {
               <component
                 :is="g.goodbye ? 'div' : RouterLink"
                 v-for="g in teamSchedule"
-                :key="g.week"
-                :to="g.goodbye ? undefined : `/game/${gameId(g.week, g.isHome ? activeTeam : g.rival, g.isHome ? g.rival : activeTeam)}`"
+                :key="g.id"
+                :to="g.goodbye ? undefined : `/game/${g.id}`"
                 class="bg-white dark:bg-d-card rounded-xl px-4 py-3 shadow-sm border border-slate-100 dark:border-d-border flex items-center gap-3 transition-colors"
                 :class="{ 'hover:border-amber-400 dark:hover:border-amber-500 cursor-pointer': !g.goodbye }"
               >
                 <div class="flex flex-col items-center w-9 shrink-0">
-                  <span class="text-[10px] text-slate-400 uppercase leading-none">Sem</span>
-                  <span class="text-2xl font-black text-amber-500 leading-tight">{{ g.week }}</span>
+                  <template v-if="g.game_type === 'playoff'">
+                    <span class="text-[10px] text-amber-500 uppercase leading-none font-bold">PO</span>
+                    <span class="text-lg font-black text-amber-500 leading-tight">🏆</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-[10px] text-slate-400 uppercase leading-none">Sem</span>
+                    <span class="text-2xl font-black text-amber-500 leading-tight">{{ g.week }}</span>
+                  </template>
                 </div>
 
                 <p v-if="g.goodbye" class="flex-1 text-sm text-slate-400 italic">

@@ -37,6 +37,8 @@ const game = computed(() => {
   return {
     id: remote.id,
     week: remote.week,
+    game_type: remote.game_type,
+    round: remote.round,
     home: remote.home_team,
     away: remote.away_team,
     date,
@@ -120,7 +122,7 @@ async function togglePick(choice: 'home' | 'away') {
 </script>
 
 <template>
-  <AppLayout v-if="game" :title="`Semana ${game.week}`" :theme-toggle="true" back>
+  <AppLayout v-if="game" :title="game.game_type === 'playoff' ? (game.round ?? 'Playoffs') : `Semana ${game.week}`" :theme-toggle="true" back>
     <main
       class="px-4 py-8 max-w-md mx-auto space-y-6 lg:max-w-5xl lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0 lg:items-stretch"
     >

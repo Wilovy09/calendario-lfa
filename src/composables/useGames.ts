@@ -3,7 +3,9 @@ import { supabase } from '@/utils/supabase'
 
 export type RemoteGame = {
   id: string
-  week: number
+  week: number | null
+  game_type: string
+  round: string | null
   home_team: string
   away_team: string
   starts_at: string
@@ -42,7 +44,7 @@ async function fetchGames() {
   fetched = true
   const { data } = await supabase
     .from('games')
-    .select('id, week, home_team, away_team, starts_at, home_score, away_score, q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away')
+    .select('id, week, game_type, round, home_team, away_team, starts_at, home_score, away_score, q1_home, q1_away, q2_home, q2_away, q3_home, q3_away, q4_home, q4_away')
     .order('starts_at')
   games.value = data ?? []
   loading.value = false
