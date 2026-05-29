@@ -108,7 +108,7 @@ async function saveScore(id: string) {
 }
 
 const sortedGames = computed(() =>
-  [...games.value].sort((a, b) => a.week - b.week || a.starts_at.localeCompare(b.starts_at)),
+  [...games.value].sort((a, b) => (a.week ?? 99) - (b.week ?? 99) || a.starts_at.localeCompare(b.starts_at)),
 )
 </script>
 
